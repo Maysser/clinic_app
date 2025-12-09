@@ -14,13 +14,13 @@ pipeline {
     // Variables d'environnement
     environment {
         // Nom de l'image Docker. Remplacez 'votre_registry' par votre registre
-        DOCKER_IMAGE_BASE = "votre_registry/clinic_app"
+        DOCKER_IMAGE_BASE = "wiemkbaier/clinic_app"
         // Tag de l'image basé sur le numéro de build de Jenkins ou le tag Git
         IMAGE_TAG = "${env.TAG_NAME ?: env.BUILD_NUMBER}"
         // Nom complet de l'image avec tag
         DOCKER_IMAGE_FULL = "${DOCKER_IMAGE_BASE}:${IMAGE_TAG}"
         // ID des credentials Docker configurés dans Jenkins
-        DOCKER_CREDENTIALS_ID = "docker-registry-credentials"
+        DOCKER_CREDENTIALS_ID = "dockerhub-cred"
         // Nom du conteneur temporaire pour le smoke test
         SMOKE_CONTAINER_NAME = "clinic_app_smoke_test"
     }
