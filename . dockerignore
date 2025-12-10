@@ -1,23 +1,18 @@
-# Dependency folders
+# Node modules et logs
 node_modules
 npm-debug.log
-
-# Logs
-*.log
+yarn-debug.log
+yarn-error.log
+pnpm-lock.yaml
 
 # Git
 .git
 .gitignore
 
-# Environment variables
+# Environnements
 .env
 .env.local
 .env.*.local
-
-# OS / Editor junk files
-.DS_Store
-.vscode
-.idea
 
 # Build outputs
 .next
@@ -27,3 +22,11 @@ build
 
 # Cache
 .next/cache
+
+# IDE / OS files
+.DS_Store
+.vscode
+.idea
+
+# Test / coverage
+coverage
