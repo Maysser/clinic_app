@@ -1,0 +1,123 @@
+pipeline {
+    agent any
+
+    environment {
+        PROJECT_NAME = "clinic_app"
+        BUILD_TIMESTAMP = "${new Date().format('yyyyMMdd_HHmmss')}"
+        ARTIFACTS_DIR = "${WORKSPACE}\\artifacts"
+        IMAGE_TAG = "${BUILD_NUMBER}-pr"
+        DOCKER_IMAGE = "id-pr-${BUILD_NUMBER}"
+        PORT = "3001"
+        APP_URL = "http://localhost:${PORT}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "========== Stage 1: Checkout (PR) =========="
+                checkout scm
+                bat 'git log --oneline -5'
+            }
+        }
+
+        stage('Setup') {
+            steps {
+                echo "========== Stage 2: Setup (PR) =========="
+                bat """
+                    if not exist "%ARTIFACTS_DIR%" mkdir "%ARTIFACTS_DIR%"
+                    docker --version
+                    node --version
+                    npm --version
+                """
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                echo "========== Stage 3: Build Frontend =========="
+                bat """
+                    echo Building Next.js frontend...
+                    npm ci > "%ARTIFACTS_DIR%\\frontend_build_${BUILD_TIMESTAMP}.log" 2>&1
+                    npm run build >> "%ARTIFACTS_DIR%\\frontend_build_${BUILD_TIMESTAMP}.log" 2>&1
+
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo Frontend Build FAILED
+                        type "%ARTIFACTS_DIR%\\frontend_build_${BUILD_TIMESTAMP}.log"
+                        exit /b 1
+                    ) else (
+                        echo Frontend Build PASSED
+                    )
+                """
+            }
+        }
+
+        stage('Docker Build & Run') {
+            steps {
+                echo "========== Stage 4: Docker Build & Run =========="
+                bat """
+                    docker rm -f ${PROJECT_NAME}-pr 2>nul || echo no container to remove
+                    docker build -t ${DOCKER_IMAGE} . >> "%ARTIFACTS_DIR%\\docker_build_${BUILD_TIMESTAMP}.log" 2>&1
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo Docker Build FAILED
+                        type "%ARTIFACTS_DIR%\\docker_build_${BUILD_TIMESTAMP}.log"
+                        exit /b 1
+                    )
+
+                    docker run -d --name ${PROJECT_NAME}-pr -p ${PORT}:80 ${DOCKER_IMAGE}
+                    ping 127.0.0.1 -n 6 >nul
+                    docker ps | findstr ${PROJECT_NAME}-pr
+                """
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                echo "========== Stage 5: Smoke Test =========="
+                bat """
+                    echo Testing frontend at ${APP_URL}...
+                    curl -f ${APP_URL} || (
+                        echo Smoke test FAILED
+                        exit /b 1
+                    )
+                    echo Smoke test PASSED
+                """
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                echo "========== Stage 6: Archive Artifacts =========="
+                bat """
+                    if not exist "%ARTIFACTS_DIR%" mkdir "%ARTIFACTS_DIR%"
+                    docker logs ${PROJECT_NAME}-pr > "%ARTIFACTS_DIR%\\container_logs_${BUILD_TIMESTAMP}.txt" 2>&1
+                    docker save ${DOCKER_IMAGE} -o "%ARTIFACTS_DIR%\\${DOCKER_IMAGE}.tar"
+                """
+                archiveArtifacts artifacts: 'artifacts/**/*', allowEmptyArchive: false
+            }
+        }
+
+        stage('Cleanup') {
+            steps {
+                echo "========== Stage 7: Cleanup =========="
+                bat """
+                    docker stop ${PROJECT_NAME}-pr 2>nul || echo container stopped
+                    docker rm ${PROJECT_NAME}-pr 2>nul || echo container removed
+                    docker rmi ${DOCKER_IMAGE} 2>nul || echo image removed
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ PR Pipeline PASSED for ${DOCKER_IMAGE}"
+        }
+        failure {
+            echo "❌ PR Pipeline FAILED for ${DOCKER_IMAGE}"
+            bat 'docker logs ${PROJECT_NAME}-pr || echo no logs'
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
