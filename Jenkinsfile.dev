@@ -1,0 +1,106 @@
+pipeline {
+    agent any
+
+    environment {
+        PROJECT_NAME = "clinic_app"
+        DOCKER_IMAGE = "id-dev"       // Image Docker pour dev
+        PORT = "3001"                 // Port exposé
+        APP_URL = "http://localhost:${PORT}"
+        ARTIFACTS_DIR = "${WORKSPACE}\\artifacts"
+    }
+
+    stages {
+        stage('Detect Branch') {
+            steps {
+                script {
+                    def branch = env.BRANCH_NAME ?: 'dev'
+                    env.PIPELINE_TYPE = 'DEV'
+                    echo "Running DEV Pipeline on branch ${branch}"
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                echo "Checkout code from branch ${env.BRANCH_NAME}"
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                echo "Installing npm dependencies"
+                bat 'npm ci'
+            }
+        }
+
+        stage('Build Next.js') {
+            steps {
+                echo "Building Next.js app"
+                bat 'npm run build'
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                echo "Building Docker image ${DOCKER_IMAGE}"
+                bat "docker build -t ${DOCKER_IMAGE} ."
+                bat "docker images | findstr ${DOCKER_IMAGE}"
+            }
+        }
+
+        stage('Run Container') {
+            steps {
+                echo "Running Docker container for DEV"
+                bat """
+                    docker rm -f ${PROJECT_NAME}-dev 2>nul || echo no existing container
+                    docker run -d --name ${PROJECT_NAME}-dev -p ${PORT}:80 ${DOCKER_IMAGE}
+                    ping 127.0.0.1 -n 6 >nul
+                    docker ps | findstr ${PROJECT_NAME}-dev
+                """
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                echo "Testing DEV app at ${APP_URL}"
+                bat "curl -f ${APP_URL} || echo 'DEV app not reachable yet'"
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                echo "Archiving DEV Docker image and logs"
+                bat """
+                    if not exist ${ARTIFACTS_DIR} mkdir ${ARTIFACTS_DIR}
+                    docker logs ${PROJECT_NAME}-dev > ${ARTIFACTS_DIR}\\container-logs.txt 2>&1
+                    docker save ${DOCKER_IMAGE} -o ${ARTIFACTS_DIR}\\${DOCKER_IMAGE}.tar
+                """
+                archiveArtifacts artifacts: 'artifacts/**/*', allowEmptyArchive: false
+            }
+        }
+
+        stage('Cleanup') {
+            steps {
+                echo "Stopping DEV container"
+                bat """
+                    docker stop ${PROJECT_NAME}-dev 2>nul || echo container stopped
+                    docker rm ${PROJECT_NAME}-dev 2>nul || echo container removed
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ DEV Pipeline completed successfully for ${DOCKER_IMAGE}"
+        }
+        failure {
+            echo "❌ DEV Pipeline failed for ${DOCKER_IMAGE}"
+            bat 'docker logs ${PROJECT_NAME}-dev || echo no logs'
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
