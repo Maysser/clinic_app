@@ -1,0 +1,29 @@
+# Dependency folders
+node_modules
+npm-debug.log
+
+# Logs
+*.log
+
+# Git
+.git
+.gitignore
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS / Editor junk files
+.DS_Store
+.vscode
+.idea
+
+# Build outputs
+.next
+out
+dist
+build
+
+# Cache
+.next/cache
