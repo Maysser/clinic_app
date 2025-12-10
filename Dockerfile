@@ -1,54 +1,38 @@
-# Dockerfile pour l'application Next.js (clinic_app)
-
-# --- Étape 1: Construction (Build) ---
-# Utilisation de l'image node:20-alpine pour la construction
+# Étape 1 : Build
 FROM node:20-alpine AS builder
 
 # Définir le répertoire de travail
 WORKDIR /app
 
-# Copier les fichiers de configuration de dépendances
-# Ceci permet d'optimiser le cache Docker en ne réinstallant les dépendances que si ces fichiers changent
-COPY package.json pnpm-lock.yaml ./
+# Copier package.json et package-lock.json
+COPY package*.json ./
 
-# Installer pnpm globalement et les dépendances du projet
-# Utilisation de --frozen-lockfile pour garantir une installation reproductible
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+# Installer les dépendances
+RUN npm ci
 
-# Copier le reste du code source
+# Copier tout le code source
 COPY . .
 
 # Construire l'application Next.js
-# NEXT_TELEMETRY_DISABLED=1 désactive la télémétrie de Next.js
-# output: "standalone" crée un dossier .next/standalone optimisé pour le déploiement Docker
-RUN NEXT_TELEMETRY_DISABLED=1 pnpm run build
+RUN npm run build
 
-# --- Étape 2: Exécution (Runtime) ---
-# Utilisation d'une image Node.js plus petite pour l'exécution finale (sécurité et taille)
+# Étape 2 : Production
 FROM node:20-alpine AS runner
 
-# Définir le répertoire de travail
 WORKDIR /app
 
-# Créer un utilisateur non-root pour des raisons de sécurité
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Copier seulement les fichiers nécessaires depuis le build
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
 
-# Copier les fichiers nécessaires depuis l'étape de construction
-# Le dossier standalone contient le serveur Next.js
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Définir les variables d'environnement
-ENV NODE_ENV production
-ENV PORT 3000
+# Définir la variable d'environnement NODE_ENV
+ENV NODE_ENV=production
+ENV PORT=3001
 
 # Exposer le port
-EXPOSE 3000
+EXPOSE 3001
 
-# Changer l'utilisateur pour l'exécution
-USER nextjs
-
-# Commande de démarrage du serveur Next.js standalone
-CMD ["node", "server.js"]
+# Lancer l'application Next.js
+CMD ["npx", "next", "start", "-p", "3001"]
