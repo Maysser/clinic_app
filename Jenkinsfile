@@ -20,7 +20,7 @@ pipeline {
         // Nom complet de l'image avec tag
         DOCKER_IMAGE_FULL = "${DOCKER_IMAGE_BASE}:${IMAGE_TAG}"
         // ID des credentials Docker configurés dans Jenkins
-        DOCKER_CREDENTIALS_ID = "docker-registry-credentials"
+        DOCKER_CREDENTIALS_ID = "id"
         // Nom du conteneur temporaire pour le smoke test
         SMOKE_CONTAINER_NAME = "clinic_app_smoke_test"
     }
