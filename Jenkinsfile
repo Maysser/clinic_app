@@ -4,7 +4,7 @@
 
 pipeline {
     // Utiliser un agent Docker pour l'exécution de la pipeline
-    any agent 
+    agent any
         docker {
             image 'node:20-alpine'
             args '-u root'
