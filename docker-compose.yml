@@ -1,0 +1,25 @@
+version: '3.9'
+
+services:
+  frontend:
+    build:
+      context: ./frontend          # dossier contenant ton projet Next.js
+      dockerfile: Dockerfile       # Dockerfile que tu as créé
+    container_name: clinic_app-frontend
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3001:3000"                # mappe le port interne 3000 du container au 3001 local
+    networks:
+      - clinic_app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  clinic_app-network:
+    driver: bridge
