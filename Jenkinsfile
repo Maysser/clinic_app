@@ -4,17 +4,16 @@
 
 pipeline {
     // Utiliser un agent Docker pour l'exécution de la pipeline
-    agent {
+    any agent 
         docker {
             image 'node:20-alpine'
             args '-u root'
         }
-    }
-
+    
     // Variables d'environnement
     environment {
         // Nom de l'image Docker. Remplacez 'votre_registry' par votre registre
-        DOCKER_IMAGE_BASE = "votre_registry/clinic_app"
+        DOCKER_IMAGE_BASE = "yasser0404/clinic_app"
         // Tag de l'image basé sur le numéro de build de Jenkins ou le tag Git
         IMAGE_TAG = "${env.TAG_NAME ?: env.BUILD_NUMBER}"
         // Nom complet de l'image avec tag
@@ -51,7 +50,7 @@ pipeline {
         stage('Docker Build') {
             when {
                 // Exécuter pour les push sur 'dev' et les tags, mais pas pour les PR
-                expression { return env.BRANCH_NAME == 'dev' || env.TAG_NAME != null || env.CHANGE_ID != null }
+                expression { return env.BRANCH_NAME == 'master' || env.TAG_NAME != null || env.CHANGE_ID != null }
             }
             steps {
                 // Utilisation de bat pour le docker build
@@ -62,7 +61,7 @@ pipeline {
         stage('Docker Push') {
             when {
                 // Exécuter pour les push sur 'dev' et les tags
-                expression { return env.BRANCH_NAME == 'dev' || env.TAG_NAME != null }
+                expression { return env.BRANCH_NAME == 'master' || env.TAG_NAME != null }
             }
             steps {
                 // Pousser l'image vers le registre Docker (uniquement pour les tags et dev)
@@ -82,7 +81,7 @@ pipeline {
         stage('Smoke Test') {
             when {
                 // Exécuter pour tous les flux (PR, dev, tag)
-                expression { return env.BRANCH_NAME == 'dev' || env.TAG_NAME != null || env.CHANGE_ID != null }
+                expression { return env.BRANCH_NAME == 'master' || env.TAG_NAME != null || env.CHANGE_ID != null }
             }
             steps {
                 script {
@@ -134,7 +133,7 @@ pipeline {
         stage('Archive Artifacts') {
             when {
                 // Exécuter pour les push sur 'dev' et les tags
-                expression { return env.BRANCH_NAME == 'dev' || env.TAG_NAME != null }
+                expression { return env.BRANCH_NAME == 'master' || env.TAG_NAME != null }
             }
             steps {
                 // Archiver les logs de build, le rapport de smoke test et le rapport de pipeline
