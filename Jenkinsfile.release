@@ -1,32 +1,133 @@
 pipeline {
     agent any
 
+    environment {
+        PROJECT_NAME = "clinic_app"
+        VERSION = "v1.0.0"
+        BUILD_TIMESTAMP = "${new Date().format('yyyyMMdd_HHmmss')}"
+        ARTIFACTS_DIR = "${WORKSPACE}\\artifacts"
+        IMAGE_TAG = "${VERSION}-${BUILD_NUMBER}"
+        DOCKER_IMAGE = "id-${VERSION}-${BUILD_NUMBER}"
+        PORT = "3001"
+        APP_URL = "http://localhost:${PORT}"
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                git 'https://github.com/Maysser/clinic_app.git'
+                echo "========== Stage 1: Checkout (RELEASE) =========="
+                checkout scm
+                bat """
+                    echo Current Branch:
+                    git rev-parse --abbrev-ref HEAD
+                    echo Current Commit:
+                    git log -1 --oneline
+                    echo Checking project structure:
+                    dir
+                """
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Setup') {
             steps {
-                sh 'npm install'
+                echo "========== Stage 2: Setup (RELEASE) =========="
+                bat """
+                    if not exist "%ARTIFACTS_DIR%" mkdir "%ARTIFACTS_DIR%"
+                    docker --version
+                    node --version
+                    npm --version
+                    echo Release Configuration:
+                    echo Version: %VERSION%
+                    echo Image Tag: %IMAGE_TAG%
+                """
             }
         }
 
-        stage('Run App') {
+        stage('Build Frontend') {
             steps {
-                sh 'node index.js'  // Remplace index.js par le fichier d'entrée de ton app
+                echo "========== Stage 3: Build Frontend =========="
+                bat """
+                    npm ci > "%ARTIFACTS_DIR%\\frontend_build_${BUILD_TIMESTAMP}.log" 2>&1
+                    npm run build >> "%ARTIFACTS_DIR%\\frontend_build_${BUILD_TIMESTAMP}.log" 2>&1
+
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo Frontend Build FAILED
+                        type "%ARTIFACTS_DIR%\\frontend_build_${BUILD_TIMESTAMP}.log"
+                        exit /b 1
+                    ) else (
+                        echo Frontend Build PASSED
+                    )
+                """
+            }
+        }
+
+        stage('Docker Build & Run') {
+            steps {
+                echo "========== Stage 4: Docker Build & Run =========="
+                bat """
+                    docker rm -f ${PROJECT_NAME}-release 2>nul || echo no container to remove
+                    docker build -t ${DOCKER_IMAGE} . >> "%ARTIFACTS_DIR%\\docker_build_${BUILD_TIMESTAMP}.log" 2>&1
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo Docker Build FAILED
+                        type "%ARTIFACTS_DIR%\\docker_build_${BUILD_TIMESTAMP}.log"
+                        exit /b 1
+                    )
+
+                    docker run -d --name ${PROJECT_NAME}-release -p ${PORT}:80 ${DOCKER_IMAGE}
+                    ping 127.0.0.1 -n 6 >nul
+                    docker ps | findstr ${PROJECT_NAME}-release
+                """
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                echo "========== Stage 5: Smoke Test =========="
+                bat """
+                    echo Testing frontend at ${APP_URL}...
+                    curl -f ${APP_URL} || (
+                        echo Smoke test FAILED
+                        exit /b 1
+                    )
+                    echo Smoke test PASSED
+                """
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                echo "========== Stage 6: Archive Artifacts =========="
+                bat """
+                    if not exist "%ARTIFACTS_DIR%" mkdir "%ARTIFACTS_DIR%"
+                    docker logs ${PROJECT_NAME}-release > "%ARTIFACTS_DIR%\\container_logs_${BUILD_TIMESTAMP}.txt" 2>&1
+                    docker save ${DOCKER_IMAGE} -o "%ARTIFACTS_DIR%\\${DOCKER_IMAGE}.tar"
+                """
+                archiveArtifacts artifacts: 'artifacts/**/*', allowEmptyArchive: false
+            }
+        }
+
+        stage('Cleanup') {
+            steps {
+                echo "========== Stage 7: Cleanup =========="
+                bat """
+                    docker stop ${PROJECT_NAME}-release 2>nul || echo container stopped
+                    docker rm ${PROJECT_NAME}-release 2>nul || echo container removed
+                    docker rmi ${DOCKER_IMAGE} 2>nul || echo image removed
+                """
             }
         }
     }
 
     post {
         success {
-            echo "✅ Pipeline terminé avec succès !"
+            echo "✅ RELEASE BUILD ${VERSION} PASSED - Production Ready"
         }
         failure {
-            echo "❌ Pipeline échoué !"
+            echo "❌ RELEASE BUILD ${VERSION} FAILED"
+            bat 'docker logs ${PROJECT_NAME}-release || echo no logs'
+        }
+        always {
+            cleanWs()
         }
     }
 }
