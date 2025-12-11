@@ -70,7 +70,7 @@ pipeline {
                     bat "docker login -u %DOCKER_USERNAME% -p %DOCKER_PASSWORD% ${DOCKER_IMAGE_BASE.split('/')[0]}"
                     bat "docker push ${DOCKER_IMAGE_FULL}"
                     // Pousser le tag 'latest' uniquement pour la branche 'dev' ou le tag
-                    if (env.BRANCH_NAME == 'dev' || env.TAG_NAME != null) {
+                    if (env.BRANCH_NAME == 'master' || env.TAG_NAME != null) {
                         bat "docker tag ${DOCKER_IMAGE_FULL} ${DOCKER_IMAGE_BASE}:latest"
                         bat "docker push ${DOCKER_IMAGE_BASE}:latest"
                     }
