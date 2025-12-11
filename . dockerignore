@@ -1,0 +1,32 @@
+# Node modules et logs
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+pnpm-lock.yaml
+
+# Git
+.git
+.gitignore
+
+# Environnements
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+.next
+out
+dist
+build
+
+# Cache
+.next/cache
+
+# IDE / OS files
+.DS_Store
+.vscode
+.idea
+
+# Test / coverage
+coverage
