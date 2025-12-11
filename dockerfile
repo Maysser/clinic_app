@@ -1,30 +1,38 @@
-# Stage 1: Build and export
-FROM node:18-alpine AS builder
+# Étape 1 : Build
+FROM node:20-alpine AS builder
+
+# Définir le répertoire de travail
+WORKDIR /app
+
+# Copier package.json et package-lock.json
+COPY package*.json ./
+
+# Installer les dépendances
+RUN npm ci
+
+# Copier tout le code source
+COPY . .
+
+# Construire l'application Next.js
+RUN npm run build
+
+# Étape 2 : Production
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Install dependencies
-COPY package*.json ./
-RUN npm ci
+# Copier seulement les fichiers nécessaires depuis le build
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
 
-COPY . .
+# Définir la variable d'environnement NODE_ENV
+ENV NODE_ENV=production
+ENV PORT=3001
 
-# Build + export static site
-RUN npm run build:static
+# Exposer le port
+EXPOSE 3001
 
-# Stage 2: Nginx for static files
-FROM nginx:alpine
-
-# Copy exported static files
-COPY --from=builder /app/out /usr/share/nginx/html
-
-# Copy custom Nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost/health || exit 1
-
-CMD ["nginx", "-g", "daemon off;"]
+# Lancer l'application Next.js
+CMD ["npx", "next", "start", "-p", "3001"]
