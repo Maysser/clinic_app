@@ -7,7 +7,7 @@ pipeline {
         ARTIFACTS_DIR = "${WORKSPACE}\\artifacts"
         IMAGE_TAG = "${BUILD_NUMBER}-pr"
         DOCKER_IMAGE = "id-pr-${BUILD_NUMBER}"
-        PORT = "3001"
+        PORT = "3000"
         APP_URL = "http://localhost:${PORT}"
     }
 
