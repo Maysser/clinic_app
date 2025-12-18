@@ -4,7 +4,7 @@ pipeline {
     environment {
         PROJECT_NAME = "clinic_app"
         DOCKER_IMAGE = "id-dev"       // Image Docker pour dev
-        PORT = "3001"                 // Port exposé
+        PORT = "3000"                 // Port exposé
         APP_URL = "http://localhost:${PORT}"
         ARTIFACTS_DIR = "${WORKSPACE}\\artifacts"
     }
